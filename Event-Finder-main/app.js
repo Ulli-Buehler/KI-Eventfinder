@@ -142,7 +142,7 @@ function handleFileUpload(event){
 
   const reader = new FileReader();
 
-  reader.onload = e => {
+  reader.onload = async e => {
 
     try{
 
@@ -152,16 +152,32 @@ function handleFileUpload(event){
       const data =
         JSON.parse(selectedEventsFileText);
 
-      allEvents =
-        Array.isArray(data)
-        ? data
-        : [];
+      if(!Array.isArray(data)){
+
+        throw new Error(
+          "Die Datei enthält keine gültige Event-Liste."
+        );
+      }
+
+      allEvents = data;
 
       renderEvents(allEvents);
 
+      dataStatus.textContent =
+        allEvents.length +
+        " gespeicherte Events geladen.";
+
       setStatus(
         adminStatus,
-        "Events importiert.",
+        "Events importiert. Speichere automatisch…",
+        ""
+      );
+
+      await saveEventsToGitHub(allEvents);
+
+      setStatus(
+        adminStatus,
+        "Events importiert und dauerhaft gespeichert.",
         "ok"
       );
 
@@ -171,7 +187,7 @@ function handleFileUpload(event){
 
       setStatus(
         adminStatus,
-        "JSON-Datei konnte nicht gelesen werden.",
+        "Events konnten nicht gespeichert werden: " + error.message,
         "error"
       );
 
@@ -180,6 +196,41 @@ function handleFileUpload(event){
   };
 
   reader.readAsText(file);
+}
+
+async function saveEventsToGitHub(events){
+
+  const response = await fetch(
+    "/api/save-events",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(events)
+    }
+  );
+
+  let result = null;
+
+  try{
+
+    result = await response.json();
+
+  }catch(error){
+
+    result = null;
+  }
+
+  if(!response.ok){
+
+    throw new Error(
+      result?.error ||
+      "Server konnte events.json nicht speichern."
+    );
+  }
+
+  return result;
 }
 
 function handlePromptImport(event){
